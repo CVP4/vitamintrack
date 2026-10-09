@@ -4,7 +4,8 @@ import { ArrowLeft, CalendarDays, Check, Clock3, Pencil, Pill, RefreshCw } from 
 import { useTracker } from '../context/TrackerContext';
 import { SupplementForm } from '../components/SupplementForm';
 import { EmptyState, Modal, PillIcon } from '../components/UI';
-import { formatDate, getLastDays, isScheduled, todayISO } from '../lib/dates';
+import { formatDate, getLastDays, isScheduled } from '../lib/dates';
+import { useToday } from '../lib/useToday';
 
 import { categoryLabels } from '../lib/supplements';
 
@@ -18,6 +19,7 @@ export function SupplementDetailPage() {
     refresh,
     updateSupplement,
   } = useTracker();
+  const date = useToday();
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
   const supplement = supplements.find((item) => String(item.id) === String(id));
@@ -50,8 +52,8 @@ export function SupplementDetailPage() {
     );
 
   const ownIntakes = intakes.filter((item) => String(item.supplementId) === String(supplement.id));
-  const todayIntake = ownIntakes.find((item) => item.date === todayISO());
-  const canTakeToday = isScheduled(supplement, todayISO());
+  const todayIntake = ownIntakes.find((item) => item.date === date);
+  const canTakeToday = isScheduled(supplement, date);
 
   async function save(values) {
     setBusy(true);
@@ -85,8 +87,14 @@ export function SupplementDetailPage() {
         <section className="panel detail-panel">
           <div className="panel-heading">
             <h2>Ваш план приёма</h2>
-            <span className={`tag ${supplement.status === 'active' ? 'tag-success' : 'tag-muted'}`}>
-              {supplement.status === 'active' ? 'Активная' : 'На паузе'}
+            <span className={`tag ${canTakeToday ? 'tag-success' : 'tag-muted'}`}>
+              {canTakeToday
+                ? 'Активная'
+                : supplement.status === 'paused'
+                  ? 'На паузе'
+                  : supplement.startDate > date
+                    ? 'Начнётся позже'
+                    : 'Завершена'}
             </span>
           </div>
           <dl className="detail-list">
@@ -125,7 +133,7 @@ export function SupplementDetailPage() {
 
         <div className="detail-side">
           <section className={`panel today-detail color-${supplement.color || 'sage'}`}>
-            <span className="eyebrow">Сегодня · {formatDate(todayISO())}</span>
+            <span className="eyebrow">Сегодня · {formatDate(date)}</span>
             <h2>
               {todayIntake
                 ? 'Приём отмечен'
@@ -150,7 +158,7 @@ export function SupplementDetailPage() {
               <span className="muted">{ownIntakes.length} отметок всего</span>
             </div>
             <div className="week-strip">
-              {getLastDays(7).map((date) => {
+              {getLastDays(7, date).map((date) => {
                 const taken = ownIntakes.some((item) => item.date === date);
                 return (
                   <div

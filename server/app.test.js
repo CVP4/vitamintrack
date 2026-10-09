@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
 import { once } from 'node:events';
@@ -25,7 +25,7 @@ const supplementInput = {
   status: 'active',
 };
 
-async function fixture(t) {
+async function fixture(t, { now = () => NOW } = {}) {
   const temporaryRoot = resolve(tmpdir());
   const directory = await mkdtemp(join(temporaryRoot, 'vitamintrack-test-'));
   const dataFile = join(directory, 'db.json');
@@ -33,11 +33,13 @@ async function fixture(t) {
   let base;
 
   async function start() {
-    server = createApp({
+    const app = createApp({
       dataFile,
-      now: () => NOW,
+      now,
       distDir: join(directory, 'missing-dist'),
-    }).listen(0, '127.0.0.1');
+    });
+    await app.locals.ready;
+    server = app.listen(0, '127.0.0.1');
     await once(server, 'listening');
     base = `http://127.0.0.1:${server.address().port}`;
   }
@@ -407,6 +409,54 @@ test('demo accounts have isolated, saved plans and six days of example history',
     (await api.request('GET', '/api/supplements', undefined, second.cookie)).body.supplements
       .length,
     4,
+  );
+});
+
+test('only demos older than seven days without an active session are removed', async (t) => {
+  let currentTime = NOW;
+  const api = await fixture(t, { now: () => currentTime });
+  const owner = await api.request('POST', '/api/auth/register', credentials);
+  const added = await api.request('POST', '/api/supplements', supplementInput, owner.cookie);
+  await api.request(
+    'POST',
+    '/api/intakes',
+    { supplementId: added.body.supplement.id, date: '2026-10-08', time: '09:00' },
+    owner.cookie,
+  );
+  const expiredDemo = await api.request('POST', '/api/auth/demo');
+  const activeDemo = await api.request('POST', '/api/auth/demo');
+  currentTime = new Date('2026-10-14T12:00:00.000Z');
+  const recentDemo = await api.request('POST', '/api/auth/demo');
+  await api.request('POST', '/api/auth/logout', undefined, recentDemo.cookie);
+
+  const before = JSON.parse(await readFile(api.dataFile, 'utf8'));
+  before.sessions.find((session) => session.userId === activeDemo.body.user.id).expiresAt =
+    '2026-10-20T12:00:00.000Z';
+  await writeFile(api.dataFile, JSON.stringify(before));
+  await api.restart();
+  currentTime = new Date('2026-10-16T12:00:00.000Z');
+  const newDemo = await api.request('POST', '/api/auth/demo');
+  assert.equal(newDemo.status, 201);
+
+  const after = JSON.parse(await readFile(api.dataFile, 'utf8'));
+  const removedId = expiredDemo.body.user.id;
+  assert.ok(after.users.every((user) => user.id !== removedId));
+  for (const table of ['sessions', 'supplements', 'intakes']) {
+    assert.ok(after[table].every((item) => item.userId !== removedId));
+  }
+  assert.ok(after.users.some((user) => user.id === newDemo.body.user.id));
+  for (const account of [owner, activeDemo, recentDemo]) {
+    assert.ok(after.users.some((user) => user.id === account.body.user.id));
+    for (const table of ['supplements', 'intakes']) {
+      assert.deepEqual(
+        after[table].filter((item) => item.userId === account.body.user.id),
+        before[table].filter((item) => item.userId === account.body.user.id),
+      );
+    }
+  }
+  assert.equal(
+    (await api.request('GET', '/api/auth/me', undefined, activeDemo.cookie)).body.user.id,
+    activeDemo.body.user.id,
   );
 });
 

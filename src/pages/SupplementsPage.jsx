@@ -4,12 +4,14 @@ import { Plus, Search, SlidersHorizontal, Pill, Pencil, Trash2, ArrowUpRight } f
 import { useTracker } from '../context/TrackerContext';
 import { SupplementForm } from '../components/SupplementForm';
 import { EmptyState, Modal, PageHeading, PillIcon } from '../components/UI';
-import { formatDate } from '../lib/dates';
+import { formatDate, isScheduled } from '../lib/dates';
+import { useToday } from '../lib/useToday';
 import { categoryLabels } from '../lib/supplements';
 
 export function SupplementsPage() {
   const { supplements, loading, createSupplement, updateSupplement, deleteSupplement } =
     useTracker();
+  const date = useToday();
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('all');
   const [editor, setEditor] = useState(null);
@@ -27,7 +29,7 @@ export function SupplementsPage() {
       }),
     [supplements, search, category],
   );
-  const activeCount = supplements.filter((item) => item.status === 'active').length;
+  const activeCount = supplements.filter((item) => isScheduled(item, date)).length;
 
   function openEditor(item = 'new') {
     setActionError('');
@@ -83,9 +85,9 @@ export function SupplementsPage() {
           <span className="muted">активных добавок</span>
         </div>
         <div className="stat-card">
-          <span className="eyebrow">Можно вернуться позже</span>
+          <span className="eyebrow">Не в плане сегодня</span>
           <strong>{supplements.length - activeCount}</strong>
-          <span className="muted">добавок на паузе</span>
+          <span className="muted">добавок вне расписания</span>
         </div>
       </div>
 
@@ -128,8 +130,14 @@ export function SupplementsPage() {
             <article className={`supplement-card color-${item.color || 'sage'}`} key={item.id}>
               <div className="card-topline">
                 <PillIcon color={item.color} />
-                <span className={`tag ${item.status === 'paused' ? 'tag-muted' : 'tag-success'}`}>
-                  {item.status === 'paused' ? 'На паузе' : 'Активная'}
+                <span className={`tag ${isScheduled(item, date) ? 'tag-success' : 'tag-muted'}`}>
+                  {isScheduled(item, date)
+                    ? 'Активная'
+                    : item.status === 'paused'
+                      ? 'На паузе'
+                      : item.startDate > date
+                        ? 'Начнётся позже'
+                        : 'Завершена'}
                 </span>
               </div>
               <span className="eyebrow">{categoryLabels[item.category] || 'Добавка'}</span>

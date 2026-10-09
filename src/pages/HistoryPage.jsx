@@ -2,15 +2,17 @@ import { Link } from 'react-router-dom';
 import { CheckCheck, History } from 'lucide-react';
 import { useTracker } from '../context/TrackerContext';
 import { EmptyState, PageHeading, PillIcon } from '../components/UI';
-import { formatDate, todayISO } from '../lib/dates';
+import { formatDate } from '../lib/dates';
+import { useToday } from '../lib/useToday';
 
 export function HistoryPage() {
   const { intakes, supplements, loading } = useTracker();
+  const date = useToday();
   const entries = [...intakes].sort((a, b) =>
     `${b.date} ${b.time || ''}`.localeCompare(`${a.date} ${a.time || ''}`),
   );
   const distinctDays = new Set(intakes.map((item) => item.date)).size;
-  const todayCount = intakes.filter((item) => item.date === todayISO()).length;
+  const todayCount = intakes.filter((item) => item.date === date).length;
 
   return (
     <>
@@ -74,7 +76,9 @@ export function HistoryPage() {
                         </span>
                       </div>
                     </td>
-                    <td>{formatDate(item.date)}</td>
+                    <td>
+                      {formatDate(item.date, { day: 'numeric', month: 'long', year: 'numeric' })}
+                    </td>
                     <td>{item.time || '—'}</td>
                     <td>{item.dose || '—'}</td>
                     <td>

@@ -142,6 +142,7 @@ export function createApp({
 } = {}) {
   const app = express();
   const store = new JsonStore(dataFile);
+  app.locals.ready = store.ready;
   const getNow = () => new Date(typeof now === 'function' ? now() : now);
   const today = () =>
     new Intl.DateTimeFormat('en-CA', {
@@ -198,11 +199,29 @@ export function createApp({
 
   function addSession(db, user, token, previousToken) {
     const timestamp = getNow();
-    db.sessions = db.sessions.filter(
-      (session) =>
-        session.expiresAt > timestamp.toISOString() &&
-        (!previousToken || session.tokenHash !== hashToken(previousToken)),
+    const currentTime = timestamp.toISOString();
+    db.sessions = db.sessions.filter((session) => session.expiresAt > currentTime);
+    const activeUserIds = new Set(db.sessions.map((session) => session.userId));
+    const oldestAllowed = timestamp.getTime() - SESSION_DURATION;
+    const expiredDemoIds = new Set(
+      db.users
+        .filter(
+          (account) =>
+            account.isDemo === true &&
+            typeof account.createdAt === 'string' &&
+            Date.parse(account.createdAt) <= oldestAllowed &&
+            !activeUserIds.has(account.id),
+        )
+        .map((account) => account.id),
     );
+    if (expiredDemoIds.size) {
+      db.users = db.users.filter((account) => !expiredDemoIds.has(account.id));
+      db.supplements = db.supplements.filter((item) => !expiredDemoIds.has(item.userId));
+      db.intakes = db.intakes.filter((item) => !expiredDemoIds.has(item.userId));
+    }
+    if (previousToken) {
+      db.sessions = db.sessions.filter((session) => session.tokenHash !== hashToken(previousToken));
+    }
     db.sessions.push({
       id: randomUUID(),
       userId: user.id,
@@ -232,7 +251,10 @@ export function createApp({
     }
   }
 
-  app.get('/api/health', (_req, res) => res.json({ ok: true }));
+  app.get('/api/health', async (_req, res) => {
+    await store.ready;
+    res.json({ ok: true });
+  });
   app.get('/api/auth/me', async (req, res) => {
     const user = await currentUser(req);
     res.json({ user: user ? publicUser(user) : null });

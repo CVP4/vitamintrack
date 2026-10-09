@@ -17,6 +17,7 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { useTracker } from '../context/TrackerContext';
 import { todayISO, getLastDays, isScheduled } from '../lib/dates';
+import { useToday } from '../lib/useToday';
 import { EmptyState, LoadingState, Modal, PageHeading } from '../components/UI';
 import { SupplementForm } from '../components/SupplementForm';
 import { IntakeRow } from '../components/IntakeRow';
@@ -32,7 +33,7 @@ export function DashboardPage() {
   const { user } = useAuth();
   const { supplements, intakes, loading, createSupplement, markIntake, unmarkIntake } =
     useTracker();
-  const date = todayISO();
+  const date = useToday();
   const [adding, setAdding] = useState(false);
   const [saving, setSaving] = useState(false);
   const [pending, setPending] = useState('');
@@ -44,18 +45,25 @@ export function DashboardPage() {
     intakes.some((log) => log.supplementId === item.id && log.date === date),
   );
   const progress = scheduled.length ? Math.round((completed.length / scheduled.length) * 100) : 0;
-  const lastDays = getLastDays(7);
+  const lastDays = getLastDays(7, date);
   const daysWithLogs = lastDays.filter((day) => intakes.some((log) => log.date === day)).length;
   const weekCount = intakes.filter((log) => lastDays.includes(log.date)).length;
   const next = scheduled.find((item) => !completed.some((entry) => entry.id === item.id));
   const toggle = async (item) => {
     if (pending) return;
-    setPending(item.id);
+    const currentDate = todayISO();
     setError('');
-    const intake = intakes.find((entry) => entry.supplementId === item.id && entry.date === date);
+    if (!isScheduled(item, currentDate)) {
+      setError('Эта добавка не входит в сегодняшний план.');
+      return;
+    }
+    setPending(item.id);
+    const intake = intakes.find(
+      (entry) => entry.supplementId === item.id && entry.date === currentDate,
+    );
     try {
       if (intake) await unmarkIntake(intake.id);
-      else await markIntake(item.id, date);
+      else await markIntake(item.id, currentDate);
     } catch (err) {
       setError(err.message);
     }
@@ -123,7 +131,7 @@ export function DashboardPage() {
               <div>
                 <p>Активные курсы</p>
                 <strong>
-                  {supplements.filter((item) => isScheduled(item, todayISO())).length}
+                  {scheduled.length}
                   <span>в вашем плане</span>
                 </strong>
               </div>

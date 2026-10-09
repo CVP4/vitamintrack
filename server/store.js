@@ -7,7 +7,8 @@ const emptyDatabase = () => ({ version: 1, users: [], sessions: [], supplements:
 export class JsonStore {
   constructor(file) {
     this.file = file;
-    this.queue = this.initialize();
+    this.ready = this.initialize();
+    this.queue = this.ready.catch(() => {});
   }
 
   async initialize() {
@@ -46,11 +47,13 @@ export class JsonStore {
   }
 
   async read() {
+    await this.ready;
     await this.queue;
     return structuredClone(this.data);
   }
 
   async transaction(operation) {
+    await this.ready;
     const transaction = this.queue.then(async () => {
       const next = structuredClone(this.data);
       const result = await operation(next);

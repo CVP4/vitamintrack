@@ -101,6 +101,18 @@ test('invalid queries are rejected before contacting NIH', async (t) => {
   assert.equal(calls, 0);
 });
 
+test('inherited object properties remain literal search queries', async (t) => {
+  const queries = [];
+  const api = await fixture(t, async (url) => {
+    queries.push(new URL(url).searchParams.get('q'));
+    return jsonResponse(searchResult);
+  });
+  for (const query of ['constructor', '__proto__']) {
+    assert.equal((await api(`?q=${query}`)).status, 200);
+  }
+  assert.deepEqual(queries, ['constructor', '__proto__']);
+});
+
 test('upstream failures and malformed data can be retried; timeout reports a clear error', async (t) => {
   let calls = 0;
   const api = await fixture(t, async () => {

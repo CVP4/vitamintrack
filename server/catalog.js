@@ -144,7 +144,8 @@ export function createCatalogRouter({ fetchImpl = globalThis.fetch, timeoutMs = 
         throw new CatalogError(400, 'Поисковый запрос должен содержать не больше 120 символов.');
       }
       url = new URL('search-filter', API_BASE);
-      const translated = searchAliases[query.toLowerCase()] || query;
+      const alias = query.toLowerCase();
+      const translated = Object.hasOwn(searchAliases, alias) ? searchAliases[alias] : query;
       const upstreamQuery = /^vitamin\s+[a-z]\d*$/i.test(translated)
         ? `"${translated}"`
         : translated;
