@@ -68,7 +68,7 @@ export function ProductArt({ product }) {
         <div className="catalog-product-image">
           <img
             src={product.imageUrl}
-            alt={`Этикетка ${product.name}`}
+            alt={`Состав ${product.name}`}
             loading="lazy"
             onError={() => setFailed(true)}
           />
@@ -95,7 +95,7 @@ export function CatalogCard({ product, inPlan, onImport }) {
           <span>NIH DSLD</span>
         </div>
         <p className="catalog-card-record muted">
-          Этикетка #{product.id}
+          Запись #{product.id}
           {product.labelDate && (
             <span>
               {' · '}В базе с{' '}
@@ -121,9 +121,9 @@ export function CatalogCard({ product, inPlan, onImport }) {
             href={product.sourceUrl}
             target="_blank"
             rel="noopener noreferrer"
-            aria-label={`Этикетка ${product.name}`}
+            aria-label={`Состав ${product.name}`}
           >
-            Этикетка <ExternalLink size={16} />
+            Состав <ExternalLink size={16} />
           </a>
         </div>
       </div>

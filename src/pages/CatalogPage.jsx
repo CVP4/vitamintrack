@@ -127,7 +127,7 @@ export function CatalogPage() {
       </div>
       <p className="catalog-language-note muted">
         Ищите по-английски или выберите быстрый запрос. Состав можно посмотреть по ссылке
-        «Этикетка».
+        «Состав».
       </p>
 
       {success && (
